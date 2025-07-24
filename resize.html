@@ -2,63 +2,85 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>画像変換：104x64 / JPEG ≤5KB</title>
+  <title>画像リサイズ＆5KB圧縮</title>
   <style>
-    body { font-family: sans-serif; text-align: center; padding: 1em; }
-    canvas { display: none; }
+    body {
+      font-family: sans-serif;
+      padding: 2em;
+      background: #f9f9f9;
+    }
+    input[type="file"] {
+      margin-bottom: 1em;
+    }
+    #preview {
+      margin-top: 1em;
+      max-width: 100%;
+    }
   </style>
 </head>
 <body>
-  <h2>ソパカ用画像変換 テスト（5KB以下）</h2>
-  <input type="file" accept="image/*" id="input"><br><br>
-  <canvas id="canvas" width="64" height="104"></canvas>
-  <a id="download" download="resized.jpg">変換画像をダウンロード</a>
-  <p id="info"></p>
+  <h1>ソパカ用画像変換 V1.1</h1>
+  <input type="file" id="upload" accept="image/*">
+  <div id="result"></div>
 
   <script>
-    const input = document.getElementById('input');
-    const canvas = document.getElementById('canvas');
-    const ctx = canvas.getContext('2d');
-    const download = document.getElementById('download');
-    const info = document.getElementById('info');
+    function compressImage(img, callback) {
+      const canvas = document.createElement("canvas");
+      canvas.width = 64;
+      canvas.height = 104;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
 
-    input.onchange = async function () {
-      const file = this.files[0];
+      let quality = 1.0;
+
+      function tryCompress() {
+        const dataUrl = canvas.toDataURL("image/jpeg", quality);
+        const byteLength = Math.round(dataUrl.length * 3 / 4);
+
+        if (byteLength <= 5120 || quality < 0.1) {
+          callback(dataUrl, byteLength);
+        } else {
+          quality -= 0.05;
+          tryCompress();
+        }
+      }
+
+      tryCompress();
+    }
+
+    document.getElementById("upload").addEventListener("change", function (e) {
+      const file = e.target.files[0];
       if (!file) return;
+
       const img = new Image();
-      img.onload = () => {
-        ctx.clearRect(0, 0, 64, 104);
-        ctx.drawImage(img, 0, 0, 64, 104);
+      const reader = new FileReader();
 
-        
-        let quality = 0.6;
-        const tryCompress = () => {
-          canvas.toBlob(blob => {
-            if (!blob) return;
-            const sizeKB = blob.size / 1024;
+      reader.onload = function (event) {
+        img.onload = function () {
+          compressImage(img, function (dataUrl, size) {
+            const link = document.createElement("a");
+            link.href = dataUrl;
+            link.download = "resized.jpg";
+            link.textContent = `⬇ ダウンロード (${(size / 1024).toFixed(2)} KB)`;
+            link.style.display = "inline-block";
+            link.style.marginTop = "1em";
 
-            if (blob.size <= 5120 || quality <= 0.2) {
-              if (blob.size > 5120) {
-                info.textContent = `⚠️ ${sizeKB.toFixed(1)}KB → 5KBを超えました（最小品質）`;
-                download.style.display = 'none';
-              } else {
-                const url = URL.createObjectURL(blob);
-                download.href = url;
-                download.textContent = `✅ ダウンロード (${sizeKB.toFixed(1)} KB)`;
-                download.style.display = 'inline';
-                info.textContent = '';
-              }
-            } else {
-              quality -= 0.05;
-              tryCompress(); // 再試行
-            }
-          }, 'image/jpeg', quality);
+            const preview = document.createElement("img");
+            preview.src = dataUrl;
+            preview.id = "preview";
+
+            const result = document.getElementById("result");
+            result.innerHTML = "";
+            result.appendChild(preview);
+            result.appendChild(document.createElement("br"));
+            result.appendChild(link);
+          });
         };
-
-        tryCompress(); // 初回試行
+        img.src = event.target.result;
       };
-      img.src = URL.createObjectURL(file);
-    };
+
+      reader.readAsDataURL(file);
+    });
   </script>
 </body>
 </html>
