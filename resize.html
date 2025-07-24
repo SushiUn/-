@@ -2,37 +2,63 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <title>画像リサイズ（104×64）</title>
+  <title>画像変換：104x64 / JPEG ≤5KB</title>
   <style>
-    body { font-family: sans-serif; text-align: center; padding: 2em; }
-    canvas { border: 1px solid #ccc; margin-top: 1em; }
+    body { font-family: sans-serif; text-align: center; padding: 1em; }
+    canvas { display: none; }
   </style>
 </head>
 <body>
-  <h1>画像を 104×64 に変換</h1>
-  <input type="file" id="upload" accept="image/*"><br>
-  <canvas id="canvas" width="64" height="104"></canvas><br>
-  <a id="download" style="display:none;" download="resized.png">リサイズ画像をダウンロード</a>
+  <h2>画像を104x64にリサイズしてJPEG変換（5KB以下）</h2>
+  <input type="file" accept="image/*" id="input"><br><br>
+  <canvas id="canvas" width="104" height="64"></canvas>
+  <a id="download" download="resized.jpg">変換画像をダウンロード</a>
+  <p id="info"></p>
 
   <script>
-    const upload = document.getElementById('upload');
+    const input = document.getElementById('input');
     const canvas = document.getElementById('canvas');
     const ctx = canvas.getContext('2d');
-    const downloadLink = document.getElementById('download');
+    const download = document.getElementById('download');
+    const info = document.getElementById('info');
 
-    upload.addEventListener('change', (e) => {
-      const file = e.target.files[0];
+    input.onchange = async function () {
+      const file = this.files[0];
       if (!file) return;
       const img = new Image();
       img.onload = () => {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.drawImage(img, 0, 0, 64, 104);
-        const dataURL = canvas.toDataURL("image/png");
-        downloadLink.href = dataURL;
-        downloadLink.style.display = 'inline';
+        ctx.clearRect(0, 0, 104, 64);
+        ctx.drawImage(img, 0, 0, 104, 64);
+
+        // 試行：圧縮率を下げながら5KB以下を目指す
+        let quality = 0.6;
+        const tryCompress = () => {
+          canvas.toBlob(blob => {
+            if (!blob) return;
+            const sizeKB = blob.size / 1024;
+
+            if (blob.size <= 5120 || quality <= 0.2) {
+              if (blob.size > 5120) {
+                info.textContent = `⚠️ ${sizeKB.toFixed(1)}KB → 5KBを超えました（最小品質）`;
+                download.style.display = 'none';
+              } else {
+                const url = URL.createObjectURL(blob);
+                download.href = url;
+                download.textContent = `✅ ダウンロード (${sizeKB.toFixed(1)} KB)`;
+                download.style.display = 'inline';
+                info.textContent = '';
+              }
+            } else {
+              quality -= 0.05;
+              tryCompress(); // 再試行
+            }
+          }, 'image/jpeg', quality);
+        };
+
+        tryCompress(); // 初回試行
       };
       img.src = URL.createObjectURL(file);
-    });
+    };
   </script>
 </body>
 </html>
